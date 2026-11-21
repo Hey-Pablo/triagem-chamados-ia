@@ -21,11 +21,11 @@ flowchart TD
     subgraph N8N["Fluxo n8n"]
         B[Webhook Trigger] --> C[Limpar Texto<br/>remover ruído]
         C --> D[Chamada LLM]
-        D --> E{Confiança<br/ >>= 0.7?}
+        D --> E{Confiança<br/>>= 0.7?}
         E -->|Sim| F[Salvar em PostgreSQL]
         F --> G[Telegram - Confirmação]
         E -->|Não| H[Telegram - Revisão]
-        H --> I[Button: Aprovar/Corrigir]
+        H --> I[Botão: Aprovar/Corrigir]
         I --> J[Salvar como Revisão]
     end
 
