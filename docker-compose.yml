@@ -1,25 +1,21 @@
-version: '3.8'
-
 services:
   n8n:
-    image: n8nio/n8n:latest
+    image: n8nio/n8n:0.255.1
     ports:
       - "5678:5678"
     environment:
-      - N8N_BASIC_AUTH_ACTIVE=false
       - N8N_HOST=localhost
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
       - DB_TYPE=postgres
       - DB_POSTGRES_HOST=db
       - DB_POSTGRES_PORT=5432
-      - DB_POSTGRES_USER=n8n_user
-      - DB_POSTGRES_PASSWORD=n8n_password
-      - DB_POSTGRES_DATABASE=n8n
-      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:-changeme_generate_32_chars}
+      - DB_POSTGRES_USER=${POSTGRES_USER:-n8n_user}
+      - DB_POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-n8n_password}
+      - DB_POSTGRES_DATABASE=${POSTGRES_DATABASE:-n8n}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
       - N8N_WEBHOOK_URL=http://localhost:5678
       - GENERIC_TIMEZONE=America/Sao_Paulo
-      - N8N_LOG_LEVEL=debug
     volumes:
       - n8n_data:/home/node/.n8n
     restart: unless-stopped
@@ -34,15 +30,15 @@ services:
   db:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_USER=n8n_user
-      - POSTGRES_PASSWORD=n8n_password
-      - POSTGRES_DB=n8n
+      - POSTGRES_USER=${POSTGRES_USER:-n8n_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-n8n_password}
+      - POSTGRES_DB=${POSTGRES_DATABASE:-n8n}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U n8n_user -d n8n"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-n8n_user} -d ${POSTGRES_DATABASE:-n8n}"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -50,8 +46,8 @@ services:
   postgres-admin:
     image: dpage/pgadmin4:8
     environment:
-      - PGADMIN_DEFAULT_EMAIL=admin@example.com
-      - PGADMIN_DEFAULT_PASSWORD=admin
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL:-admin@example.com}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD:-admin_password}
     ports:
       - "8080:80"
     volumes:

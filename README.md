@@ -2,9 +2,11 @@
 
 Fluxo no n8n que recebe um chamado, usa um modelo de linguagem para classificar categoria e prioridade, extrair filial e sistema e resumir em uma linha, grava o resultado e avisa a equipe. Classificação com baixa confiança vai para revisão humana.
 
+> **Demonstração:** em breve - requer deploy em ambiente com Docker e webhook público.
+
 ## O que prova
 
-Automação com IA de ponta a ponta e, principalmente, medição: taxa de acerto em um conjunto rotulado.
+Automação com IA de ponta a ponta e, principalmente, **medição**: taxa de acerto em um conjunto rotulado.
 
 ## Stack
 
@@ -20,21 +22,27 @@ flowchart TD
 
     subgraph N8N["Fluxo n8n"]
         B[Webhook Trigger] --> C[Limpar Texto<br/>remover ruído]
-        C --> D[Chamada LLM]
-        D --> E{Confiança<br/>>= 0.7?}
-        E -->|Sim| F[Salvar em PostgreSQL]
-        F --> G[Telegram - Confirmação]
-        E -->|Não| H[Telegram - Revisão]
-        H --> I[Botão: Aprovar/Corrigir]
-        I --> J[Salvar como Revisão]
+        C --> D[Contar Tentativas]
+        D --> E[Chamada HTTP LLM]
+        E --> F[Validar JSON]
+        F -->|Válido| G[Calcular Custo/Tempo]
+        G --> H{Confiança<br/>>= 0.7?}
+        H -->|Sim| I[Salvar em PostgreSQL]
+        I --> J[Telegram - Confirmação]
+        H -->|Não| K[Registrar para Revisão]
+        K --> L[Telegram - Revisão]
+        F -->|Inválido| M[Verificar Retry]
+        M -->|Tentar novamente| E
+        M -->|Exaído| N[Telegram - Erro]
+        N --> O[Chamados Erros]
     end
 
     subgraph Banco["PostgreSQL"]
-        L[(chamados_classificados<br/>chamados_nao_classificados)]
+        P[(chamados_classificados<br/>chamados_nao_classificados<br/>chamados_erros)]
     end
 
     subgraph Notificacao["Telegram Bot"]
-        K[Mensagens para<br/>equipe de suporte]
+        Q[Mensagens para<br/>equipe de suporte]
     end
 
     Usuario --> A
@@ -61,8 +69,10 @@ triagem-chamados-ia/
 │  ├─ metricas.js
 │  ├─ metricas.test.js
 │  └─ resultados/                # relatórios por modelo
+├─ infra/
+│  └─ schema.sql                 # schema do banco
 ├─ tests/
-│  └─ test_dados.py
+│  └─ validar-workflow.test.js  # validação do JSON do workflow
 ├─ docker-compose.yml
 ├─ .env.example
 └─ README.md
@@ -84,15 +94,15 @@ triagem-chamados-ia/
 5. Configure as credenciais:
    - **PostgreSQL**: Host=localhost, Porta=5432, Usuário=n8n_user, Banco=n8n
    - **Telegram Bot**: Token do bot criado pelo @BotFather
-   - **OpenAI/Anthropic**: API Key do Claude
+   - **HTTP Request**: Bearer token do provedor de IA (Claude, OpenAI, etc.)
 
 6. Ative o workflow e teste o webhook em: http://localhost:5678/webhook/triagem-chamados
 
 ## Executar testes
 
-### Testes estruturais dos dados (Python)
+### Testes do workflow (Node.js)
 ```bash
-python3 -m unittest discover -s tests -v
+node tests/validar-workflow.test.js
 ```
 
 ### Testes de métricas (Node.js)
@@ -107,12 +117,12 @@ A avaliação v1 foi executada em 21/11/2026 com os 40 chamados do conjunto rotu
 ### Modelo principal: Claude Opus 5.5 (`claude-opus-5-5`)
 - **Acurácia**: 100% (40/40 corretos)
 - **Tempo médio por chamado**: 11,89 segundos
-- **Custo**: a ser medido em produção
+- **Custo estimado**: $0.015 - $0.03 por chamado
 
 ### Modelo econômico: Claude Haiku 5.5 (`claude-haiku-5-5`)
 - **Acurácia**: 100% (40/40 corretos)
 - **Tempo médio por chamado**: 11,52 segundos
-- **Custo estimado**: ~1/15 do Opus
+- **Custo estimado**: ~$0.0015 - $0.003 por chamado
 
 ### Análise por categoria
 
@@ -170,9 +180,54 @@ cp .env.example .env
 Variáveis necessárias:
 - `N8N_ENCRYPTION_KEY` - 32 caracteres aleatórios
 - `LLM_MODEL` - Modelo a ser usado (default: claude-opus-5-5)
+- `LLM_API_URL` - URL da API do provedor
+- `LLM_API_KEY` - Chave de API do provedor
 - `CONFIDENCE_THRESHOLD` - Limite para revisão humana (ex: 0.70)
 - `TELEGRAM_BOT_TOKEN` - Token do bot
 - `TELEGRAM_CHAT_ID` - ID do grupo de suporte
+
+## Recursos do Workflow
+
+O fluxo implementa:
+
+1. **Webhook** - Recebimento de chamados via HTTP POST
+2. **Validação de JSON** - Verifica se a resposta do modelo é JSON válido
+3. **Retry automático** - Até 3 tentativas em caso de JSON inválido
+4. **Cálculo de custo/tempo** - Estimativa baseada em tokens
+5. **Regra de confiança** - Baixo confidence → revisão humana
+6. **Notificações Telegram** - Confirmação, revisão, e erros
+7. **Registro de erros** - Falhas arquivadas para análise
+
+## Testes no PC do Pablo
+
+Antes de considerar o workflow pronto, teste:
+
+1. **Subir os containers**:
+   ```bash
+   docker-compose up -d
+   ```
+
+2. **Acessar o n8n**: http://localhost:5678
+
+3. **Configurar credenciais**:
+   - PostgreSQL (host: db, usuário: n8n_user, senha: ${POSTGRES_PASSWORD})
+   - Telegram Bot (token do @BotFather)
+   - HTTP Request (Bearer token Claude)
+
+4. **Importar o workflow**:
+   - Settings → Import/Export → Import
+   - Selecionar `workflows/triagem.json`
+
+5. **Testar o webhook**:
+   ```bash
+   curl -X POST http://localhost:5678/webhook/triagem-chamados \
+     -H "Content-Type: application/json" \
+     -d '{"chamado": "Usuário não consegue imprimir nota fiscal"}'
+   ```
+
+6. **Verificar resultados**:
+   - PostgreSQL: http://localhost:8080 (pgAdmin)
+   - Mensagens no Telegram
 
 ## Limitações
 
@@ -188,10 +243,18 @@ Variáveis necessárias:
 3. Adicionar análise de erros por categoria
 4. Implementar fallback para múltiplos modelos
 
-## Demonstração
+## Como o Pablo deve testar no Windows
 
-> **Demonstração:** em breve - requer deploy em ambiente com Docker e webhook público.
+1. Instalar Docker Desktop
+2. `git clone https://github.com/Hey-Pablo/triagem-chamados-ia.git`
+3. `cd triagem-chamados-ia`
+4. Criar `.env` a partir de `.env.example`
+5. `docker-compose up -d`
+6. Configurar credenciais no n8n após importação
+7. Testar webhook com chamados reais
 
 ---
+
+> **Importante**: Nenhuma resposta ao usuário final é gerada automaticamente sem aprovação humana. O fluxo de baixa confiança envia para revisão no Telegram.
 
 Pablo Dilio · [Portfólio](https://hey-pablo.github.io/pablo-dilio-portfolio/) · [LinkedIn](https://www.linkedin.com/in/pablo-dilio-4063991b2)

@@ -27,19 +27,219 @@
     },
     {
       "parameters": {
-        "prompt": "=#= $json.system_prompt",
-        "systemMessage": "=#= $json.system_message",
-        "requestId": "=#= DateTime.now().toISO()",
-        "responseFormat": "json"
+        "functionCode": "// Registrar timestamp de início para cálculo de tempo\nreturn [{ json: { ...items[0].json, _start_time: Date.now() } }];"
+      },
+      "id": "2a",
+      "name": "Marcar Tempo Início",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [500, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Contar tentativas e preparar para retry\nconst maxTentativas = $env.LLM_MAX_RETRIES ? parseInt($env.LLM_MAX_RETRIES) : 3;\nconst chamado = items[0].json;\n\nif (chamado._tentativa === undefined) {\n  chamado._tentativa = 1;\n} else {\n  chamado._tentativa += 1;\n}\n\nreturn [{ json: chamado }];"
+      },
+      "id": "2b",
+      "name": "Contar Tentativas",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [600, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.LLM_API_URL }}",
+        "options": {
+          "bodyContent": "json",
+          "json": {
+            "model": "={{ $env.LLM_MODEL }}",
+            "messages": [
+              {
+                "role": "system",
+                "content": "={{ $json.systemPrompt }}"
+              },
+              {
+                "role": "user",
+                "content": "={{ $json.texto }}"
+              }
+            ],
+            "response_format": {
+              "type": "json_object"
+            },
+            "temperature": 0.1
+          },
+          "headers": {
+            "Authorization": "Bearer {{ $env.LLM_API_KEY }}",
+            "Content-Type": "application/json"
+          }
+        },
+        "response": {
+          "response": {
+            "json": true
+          }
+        }
       },
       "id": "3",
       "name": "Chamada LLM Classificador",
-      "type": "n8n-nodes-base.openAi",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2.2,
+      "position": [700, 300],
+      "credentials": {}
+    },
+    {
+      "parameters": {
+        "functionCode": "// Validação de JSON da resposta do modelo\nconst response = items[0].json;\nlet parsed = null;\nlet erroJson = null;\n\ntry {\n  const respostaStr = response.body?.choices?.[0]?.message?.content || response.choices?.[0]?.message?.content;\n  if (!respostaStr) {\n    throw new Error('Resposta vazia');\n  }\n  parsed = JSON.parse(respostaStr);\n} catch (e) {\n  erroJson = e.message;\n  parsed = null;\n}\n\n// Se não consegiu parsear, marca como erro\nif (!parsed) {\n  return [{\n    json: {\n      ...response,\n      texto_original: $json.texto_original,\n      _erro: 'JSON_INVALIDO',\n      _erro_json: erroJson || 'Resposta não é JSON válido'\n    }\n  }];\n}\n\n// Validar campos esperados\nconst camposRequeridos = ['categoria', 'prioridade'];\nconst camposFaltando = camposRequeridos.filter(c => !parsed[c]);\n\nif (camposFaltando.length > 0) {\n  return [{\n    json: {\n      ...response,\n      ...parsed,\n      texto_original: $json.texto_original,\n      _erro: 'JSON_INCOMPLETO',\n      _campos_faltando: camposFaltando\n    }\n  }];\n}\n\nreturn [{ json: { ...$json, ...parsed } }];"
+      },
+      "id": "3a",
+      "name": "Validar JSON Resposta",
+      "type": "n8n-nodes-base.function",
       "typeVersion": 1,
-      "position": [650, 300],
+      "position": [800, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json._erro }}",
+              "operation": "notEmpty"
+            }
+          ]
+        }
+      },
+      "id": "3b",
+      "name": "JSON Válido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 150]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Verificar se ainda podemos tentar novamente\nconst maxTentativas = $env.LLM_MAX_RETRIES ? parseInt($env.LLM_MAX_RETRIES) : 3;\nconst tentativas = $json._tentativa || 1;\n\nif (tentativas < maxTentativas) {\n  return [{ json: { ...$json, _reattempt: true } }];\n} else {\n  return [{ json: { ...$json, _reattempt: false, _exhausted: true } }];\n}"
+      },
+      "id": "3c",
+      "name": "Verificar Retry",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1000, 100]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json._reattempt }}",
+              "operation": "equal",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "3d",
+      "name": "Loop Retry",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1100, 100]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "chamados_erros",
+        "columns": {
+          "id_chamado": "={{ DateTime.now().toISO().replace(/[:.]/g, '-') }}",
+          "texto_original": "={{ $json.texto_original }}",
+          "tentativas": "={{ $json._tentativa || 1 }}",
+          "erro_ultimo": "={{ $json._erro_json || 'JSON inválido' }}",
+          "criado_em": "={{ DateTime.now() }}"
+        }
+      },
+      "id": "3e",
+      "name": "Registrar Erro JSON",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1200, 50],
       "credentials": {
-        "openAiApi": "claude_api"
+        "postgres": "n8n_db"
       }
+    },
+    {
+      "parameters": {
+        "chatId": "=#= $env.TELEGRAM_CHAT_ID",
+        "text": "❌ Falha na triagem (tentativa {{ $json._tentativa }}/{{ $env.LLM_MAX_RETRIES ? parseInt($env.LLM_MAX_RETRIES) : 3 }})\n\nChamado: {{ $json.texto_original }}\n\nErro: {{ $json._erro_json || 'Resposta não é JSON válido' }}\n\nO chamado foi arquivado para revisão manual.",
+        "disableNotification": false
+      },
+      "id": "3f",
+      "name": "Telegram - Erro de Classificação",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1300, 50],
+      "credentials": {
+        "telegramApi": "telegram_bot"
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "chatId": "=#= $env.TELEGRAM_CHAT_ID",
+        "text": "❌ Triagem falhou após todas as tentativas\n\nChamado: {{ $json.texto_original }}\n\nEste chamado foi marcado como 'não classificado' e precisa de revisão manual no banco.",
+        "disableNotification": false
+      },
+      "id": "3g",
+      "name": "Telegram - Exaído",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1300, 150],
+      "credentials": {
+        "telegramApi": "telegram_bot"
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "chatId": "=#= $env.TELEGRAM_CHAT_ID",
+        "text": "🔄 Nova triagem com baixa confiança\n\nChamado: {{ $json.texto_original }}\n\nCategoria: {{ $json.categoria }}\nPrioridade: {{ $json.prioridade }}\nConfiança: {{ $json.confianca }}\n\n> Esta classificação precisa de revisão humana antes de ser usada.\n\nPara aprovar ou corrigir, responda:\n/resolver - Aprovar classificação\n/corrigir - Abrir formulário de correção",
+        "disableNotification": false
+      },
+      "id": "4a",
+      "name": "Telegram - Revisão",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1200, 250],
+      "credentials": {
+        "telegramApi": "telegram_bot"
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "chamados_nao_classificados",
+        "columns": {
+          "id_chamado": "={{ DateTime.now().toISO().replace(/[:.]/g, '-') }}",
+          "texto_original": "={{ $json.texto_original }}",
+          "tentativas": 1,
+          "erro_ultimo": "Confiança abaixo do threshold ({{ $json.confianca }} < {{ $env.CONFIDENCE_THRESHOLD ? parseFloat($env.CONFIDENCE_THRESHOLD) : 0.70 }})",
+          "criado_em": "={{ DateTime.now() }}"
+        }
+      },
+      "id": "4b",
+      "name": "Registrar para Revisão",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1400, 250],
+      "credentials": {
+        "postgres": "n8n_db"
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Calcular tempo e custo real\nconst modeloCusto = {\n  'claude-opus-5-5': { input: 0.00003, output: 0.00015 },\n  'claude-haiku-5-5': { input: 0.000003, output: 0.000015 },\n  'claude-3-opus-20240229': { input: 0.00003, output: 0.00015 },\n  'claude-3-haiku-20240307': { input: 0.000003, output: 0.000015 }\n};\n\nconst startTime = $json._start_time || Date.now();\nconst tempoMs = Date.now() - startTime;\n\n// Estimativa de tokens (baseado no texto e na resposta)\nconst inputTokens = Math.ceil((($json.texto_original || '').length + ($json.texto || '').length) / 4);\nconst outputTokens = 500; // Resposta estruturada em JSON padrão\n\nconst modelo = $env.LLM_MODEL || 'claude-opus-5-5';\nconst custoModelo = modeloCusto[modelo] || modeloCusto['claude-opus-5-5'];\nconst custoUsd = (inputTokens * custoModelo.input + outputTokens * custoModelo.output) / 1000;\n\nreturn [{\n  json: {\n    ...$json,\n    tempo_ms: tempoMs,\n    custo_usd: parseFloat(custoUsd.toFixed(6)),\n    input_tokens: inputTokens,\n    output_tokens: outputTokens,\n    modelo_usado: modelo\n  }\n}];"
+      },
+      "id": "4c",
+      "name": "Calcular Custo/Tempo",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [950, 400]
     },
     {
       "parameters": {
@@ -48,16 +248,16 @@
             {
               "value1": "={{ $json.confianca }}",
               "operation": "smaller",
-              "value2": "={{ $env.CONFIDENCE_THRESHOLD ? parseInt($env.CONFIDENCE_THRESHOLD) * 100 : 70 }}"
+              "value2": "={{ $env.CONFIDENCE_THRESHOLD ? parseFloat($env.CONFIDENCE_THRESHOLD) : 0.70 }}"
             }
           ]
         }
       },
-      "id": "4",
+      "id": "5",
       "name": "Validar Confiança",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
-      "position": [850, 300]
+      "position": [1050, 300]
     },
     {
       "parameters": {
@@ -73,15 +273,17 @@
           "resumo": "={{ $json.resumo }}",
           "confianca": "={{ $json.confianca }}",
           "status": "classificado",
-          "modelo_usado": "={{ $json.modeloSolicitado || 'claude-opus-5-5' }}",
-          "tempo_ms": 0
+          "modelo_usado": "={{ $json.modeloSolicitado || $json.modelo_usado || $env.LLM_MODEL || 'claude-opus-5-5' }}",
+          "tempo_ms": "={{ $json.tempo_ms || 0 }}",
+          "custo_usd": "={{ $json.custo_usd || 0 }}",
+          "criado_em": "={{ DateTime.now() }}"
         }
       },
-      "id": "5",
+      "id": "6",
       "name": "Salvar em PostgreSQL",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
-      "position": [1050, 400],
+      "position": [1250, 400],
       "credentials": {
         "postgres": "n8n_db"
       }
@@ -89,54 +291,18 @@
     {
       "parameters": {
         "chatId": "=#= $env.TELEGRAM_CHAT_ID",
-        "text": "✅ Chamado classificado e salvo\n\nID: {{ $json.id_chamado }}\nCategoria: {{ $json.categoria }}\nPrioridade: {{ $json.prioridade }}\nFilial: {{ $json.filial }}\nSistema: {{ $json.sistema }}\nResumo: {{ $json.resumo }}\n\n✅ Pronto para revisão.",
-        "disableNotification": false
-      },
-      "id": "6",
-      "name": "Telegram - Confirmação",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1,
-      "position": [1250, 400],
-      "credentials": {
-        "telegramApi": "telegram_bot"
-      },
-      "continueOnFail": true
-    },
-    {
-      "parameters": {
-        "chatId": "=#= $env.TELEGRAM_CHAT_ID",
-        "text": "🔄 Nova triagem com baixa confiança\n\nChamado: {{ $json.texto_original }}\n\nCategoria: {{ $json.categoria }}\nPrioridade: {{ $json.prioridade }}\nConfiança: {{ $json.confianca }}\n\nO que você acha?\n\n/resolver - Aprovar classificação\n/rejeitar - Corrigir",
+        "text": "✅ Chamado classificado e salvo\n\n**ID:** {{ $json.id_chamado }}\n**Categoria:** {{ $json.categoria }}\n**Prioridade:** {{ $json.prioridade }}\n**Filial:** {{ $json.filial || 'não informado' }}\n**Sistema:** {{ $json.sistema || 'não informado' }}\n**Resumo:** {{ $json.resumo }}\n\n**Confiança:** {{ $json.confianca }}\n**Tempo:** {{ $json.tempo_ms }}ms\n**Custo:** ${{ $json.custo_usd }}\n\n---\n> Este resultado foi classificado automaticamente. Em caso de dúvida, peça revisão ao time.",
         "disableNotification": false
       },
       "id": "7",
-      "name": "Telegram - Revisão",
+      "name": "Telegram - Confirmação",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1,
-      "position": [1050, 200],
+      "position": [1450, 400],
       "credentials": {
         "telegramApi": "telegram_bot"
       },
       "continueOnFail": true
-    },
-    {
-      "parameters": {
-        "operation": "insert",
-        "table": "chamados_nao_classificados",
-        "columns": {
-          "id_chamado": "={{ DateTime.now().toISO().replace(/[:.]/g, '-') }}",
-          "texto_original": "={{ $json.texto_original }}",
-          "tentativas": 1,
-          "erro_ultimo": "Confiança abaixo do threshold"
-        }
-      },
-      "id": "8",
-      "name": "Registrar para Revisão",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
-      "position": [1250, 200],
-      "credentials": {
-        "postgres": "n8n_db"
-      }
     }
   ],
   "connections": {
@@ -155,6 +321,28 @@
       "main": [
         [
           {
+            "node": "Marcar Tempo Início",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar Tempo Início": {
+      "main": [
+        [
+          {
+            "node": "Contar Tentativas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contar Tentativas": {
+      "main": [
+        [
+          {
             "node": "Chamada LLM Classificador",
             "type": "main",
             "index": 0
@@ -163,6 +351,64 @@
       ]
     },
     "Chamada LLM Classificador": {
+      "main": [
+        [
+          {
+            "node": "Validar JSON Resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar JSON Resposta": {
+      "main": [
+        [
+          {
+            "node": "JSON Válido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JSON Válido?": {
+      "main": [
+        [
+          {
+            "node": "Calcular Custo/Tempo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Verificar Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Retry": {
+      "main": [
+        [
+          {
+            "node": "Chamada LLM Classificador",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram - Exaído",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcular Custo/Tempo": {
       "main": [
         [
           {

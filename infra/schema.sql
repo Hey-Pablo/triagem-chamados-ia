@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS chamados_classificados (
     modelo_usado VARCHAR(100),
     custo_usd NUMERIC(10,6),
     tempo_ms INTEGER,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    input_tokens INTEGER,
+    output_tokens INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS chamados_nao_classificados (
@@ -27,6 +28,15 @@ CREATE TABLE IF NOT EXISTS chamados_nao_classificados (
     erro_ultimo TEXT,
     criado_em TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     atualizado_em TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS chamados_erros (
+    id SERIAL PRIMARY KEY,
+    id_chamado VARCHAR(50) UNIQUE NOT NULL,
+    texto_original TEXT NOT NULL,
+    tentativas INTEGER DEFAULT 1,
+    erro_ultimo TEXT,
+    criado_em TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS revisao_humana (
@@ -56,3 +66,6 @@ CREATE INDEX IF NOT EXISTS idx_chamados_prioridade ON chamados_classificados(pri
 CREATE INDEX IF NOT EXISTS idx_chamados_filial ON chamados_classificados(filial);
 CREATE INDEX IF NOT EXISTS idx_chamados_status ON chamados_classificados(status);
 CREATE INDEX IF NOT EXISTS idx_chamados_criado_em ON chamados_classificados(criado_em);
+CREATE INDEX IF NOT EXISTS idx_chamados_confianca ON chamados_classificados(confianca);
+CREATE INDEX IF NOT EXISTS idx_nao_classificados_criado_em ON chamados_nao_classificados(criado_em);
+CREATE INDEX IF NOT EXISTS idx_nao_classificados_erros ON chamados_erros(erro_ultimo);

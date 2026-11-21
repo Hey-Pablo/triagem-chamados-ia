@@ -44,11 +44,14 @@ if (!Array.isArray(workflow.nodes) || workflow.nodes.length === 0) {
 }
 console.log(`✅ ${workflow.nodes.length} nós definidos`);
 
-// Verificar nós críticos
+// Verificar nós críticos (incluindo novos nós de retry e validação)
 const criticalNodes = [
   'Webhook - Receber Chamado',
   'Limpar Texto',
+  'Contar Tentativas',
   'Chamada LLM Classificador',
+  'Validar JSON Resposta',
+  'Calcular Custo/Tempo',
   'Validar Confiança',
   'Salvar em PostgreSQL',
   'Telegram - Confirmação',
@@ -64,13 +67,32 @@ if (missingNodes.length > 0) {
 }
 console.log('✅ Todos os nós críticos presentes');
 
+// Verificar nós de error handling
+const errorNodes = ['Validar JSON Resposta', 'Registrar Erro JSON'];
+const hasErrorNodes = errorNodes.every(name => nodeNames.includes(name));
+if (hasErrorNodes) {
+  console.log('✅ Nós de tratamento de erro presentes');
+} else {
+  console.error('❌ Nós de tratamento de erro ausentes');
+  process.exit(1);
+}
+
+// Verificar nós de retry
+const retryNodes = ['Loop Retry', 'Verificar Retry', 'Contar Tentativas'];
+const hasRetryNodes = retryNodes.every(name => nodeNames.includes(name));
+if (hasRetryNodes) {
+  console.log('✅ Nós de retry presentes');
+} else {
+  console.error('❌ Nós de retry ausentes');
+  process.exit(1);
+}
+
 // Validar conexões - verificar se os nós referenciados existem
 const allNodeNames = new Set(workflow.nodes.map(n => n.name));
 let connectionErrors = [];
 
 for (const [sourceNodeName, connections] of Object.entries(workflow.connections || {})) {
   for (const [outputName, targetGroups] of Object.entries(connections)) {
-    // targetGroups is an array of arrays (one per main output)
     if (!Array.isArray(targetGroups)) continue;
 
     for (const targetArray of targetGroups) {
@@ -88,10 +110,9 @@ for (const [sourceNodeName, connections] of Object.entries(workflow.connections 
 
 if (connectionErrors.length > 0) {
   console.error('❌ Conexões inválidas:', connectionErrors.join(', '));
-  // Não falhar, apenas avisar
-} else {
-  console.log('✅ Conexões válidas');
+  process.exit(1);
 }
+console.log('✅ Conexões válidas');
 
 // Verificar webhook
 const webhookNode = workflow.nodes.find(n => n.name === 'Webhook - Receber Chamado');
@@ -99,6 +120,62 @@ if (webhookNode && webhookNode.webhook) {
   console.log(`✅ Webhook configurado: ${webhookNode.webhook}`);
 } else {
   console.warn('⚠️  Webhook não configurado ou nome diferente do esperado');
+}
+
+// Verificar se usa HTTP Request (não OpenAI node direto)
+const callNode = workflow.nodes.find(n => n.type === 'n8n-nodes-base.httpRequest' && n.name.includes('LLM'));
+if (callNode) {
+  console.log('✅ Usando HTTP Request para chamada ao modelo (mais flexível)');
+} else {
+  console.warn('⚠️  Verificar tipo de nó usado para chamada LLM');
+}
+
+// Verificar se não tem segredos hardcoded
+const workflowStr = JSON.stringify(workflow);
+let secretErrors = [];
+
+// Verificar possíveis segredos
+if (workflowStr.includes('sk-')) {
+  secretErrors.push('Chave API OpenAI detectada (sk-)');
+}
+if (workflowStr.includes('Bearer sk-')) {
+  secretErrors.push('Chave API no Bearer header');
+}
+if (workflowStr.includes('your_claude_api_key') && workflowStr.includes('Bearer')) {
+  secretErrors.push('Valor da chave em variável ou credencial');
+}
+
+if (secretErrors.length > 0) {
+  console.error('❌ Segredos detectados no workflow:', secretErrors.join(', '));
+  process.exit(1);
+}
+console.log('✅ Nenhum segredo hardcoded no workflow');
+
+// Verificar nó de cálculo de custo/tempo
+const custoTempoNode = workflow.nodes.find(n => n.name === 'Calcular Custo/Tempo');
+if (custoTempoNode) {
+  console.log('✅ Nó de cálculo de custo/tempo presente');
+} else {
+  console.error('❌ Nó de cálculo de custo/tempo ausente');
+  process.exit(1);
+}
+
+// Verificar caminho de não classificado/com erro
+const hasErrorPath = workflowStr.includes('chamados_erros') || workflowStr.includes('chamados_nao_classificados');
+if (hasErrorPath) {
+  console.log('✅ Tabelas de erros/não classificados configuradas');
+} else {
+  console.error('❌ Falta tratamento para chamados que falham');
+  process.exit(1);
+}
+
+// Verificar retry loop
+const hasRetryLoop = workflow.connections['JSON Válido?']?.main?.[1]?.[0]?.node === 'Verificar Retry';
+if (hasRetryLoop || workflow.connections['Verificar Retry']) {
+  console.log('✅ Loop de retry implementado');
+} else {
+  console.error('❌ Falta loop de retry no workflow');
+  process.exit(1);
 }
 
 // Resumo
@@ -109,11 +186,23 @@ console.log(`   Nós: ${workflow.nodes.length}`);
 console.log(`   Conexões: ${Object.keys(workflow.connections || {}).length}`);
 
 // Verificar credenciais pendentes
-const hasCredentials = workflow.nodes.some(n => n.credentials);
+const hasCredentials = workflow.nodes.some(n => n.credentials && Object.keys(n.credentials).length > 0);
 if (hasCredentials) {
   console.log('\n⚠️  Credenciais configuradas (verifique no n8n após importar)');
 }
 
+// Verificar se o modelo é Anthropic/Claude
+const llmConfigNode = workflow.nodes.find(n => n.name === 'Chamada LLM Classificador');
+if (llmConfigNode && llmConfigNode.parameters?.json?.messages) {
+  console.log('\n✅ Usando HTTP Request com variáveis de ambiente para chave API');
+}
+
 console.log('\n✅ Validação concluída com sucesso!');
 console.log('   Importante: Configure as credenciais no n8n após a importação.');
+console.log('\n📝 Testes recomendados no PC do Pablo:');
+console.log('   1. docker-compose up -d');
+console.log('   2. Acessar http://localhost:5678');
+console.log('   3. Configurar credenciais: PostgreSQL, Telegram, LLM API');
+console.log('   4. Importar workflows/triagem.json');
+console.log('   5. Testar webhook: curl -X POST http://localhost:5678/webhook/triagem-chamados -H "Content-Type: application/json" -d \'{"chamado": "teste"}\'');
 process.exit(0);
