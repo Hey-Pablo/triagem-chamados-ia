@@ -1,0 +1,75 @@
+{
+  "total": 40,
+  "acertos": 40,
+  "acuracia": 1,
+  "porCategoria": {
+    "acesso": {
+      "total": 5,
+      "acertos": 5,
+      "acuracia": 1
+    },
+    "cadastro": {
+      "total": 5,
+      "acertos": 5,
+      "acuracia": 1
+    },
+    "fiscal": {
+      "total": 5,
+      "acertos": 5,
+      "acuracia": 1
+    },
+    "financeiro": {
+      "total": 5,
+      "acertos": 5,
+      "acuracia": 1
+    },
+    "estoque": {
+      "total": 5,
+      "acertos": 5,
+      "acuracia": 1
+    },
+    "vendas": {
+      "total": 5,
+      "acertos": 5,
+      "acuracia": 1
+    },
+    "infraestrutura": {
+      "total": 5,
+      "acertos": 5,
+      "acuracia": 1
+    },
+    "outros": {
+      "total": 5,
+      "acertos": 5,
+      "acuracia": 1
+    }
+  },
+  "matriz": {
+    "acesso": {
+      "acesso": 5
+    },
+    "cadastro": {
+      "cadastro": 5
+    },
+    "fiscal": {
+      "fiscal": 5
+    },
+    "financeiro": {
+      "financeiro": 5
+    },
+    "estoque": {
+      "estoque": 5
+    },
+    "vendas": {
+      "vendas": 5
+    },
+    "infraestrutura": {
+      "infraestrutura": 5
+    },
+    "outros": {
+      "outros": 5
+    }
+  },
+  "tempoMedioMs": 11515.875,
+  "custo": null
+}
