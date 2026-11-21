@@ -12,7 +12,19 @@ Automação com IA de ponta a ponta e, principalmente, medição: taxa de acerto
 
 ## Stack
 
-n8n em Docker. API do Claude com saída estruturada em JSON. Google Sheets ou Supabase. Bot do Telegram. Sobre o modelo: comece com `claude-opus-5-5` e rode a mesma avaliação com `claude-haiku-5-5`, que custa uma fração; a escolha sai dos seus números de acerto e custo.
+Planejado: n8n em Docker, saída estruturada em JSON, Google Sheets ou Supabase e bot do Telegram. A avaliação comparará modelo principal x modelo econômico; a escolha dependerá de acerto e custo medidos. Nenhuma integração ou avaliação foi implementada nesta etapa.
+
+## Material disponível
+
+A [taxonomia v1](dados/taxonomia.md) define oito categorias e quatro prioridades. O [conjunto rotulado](dados/chamados_rotulados.csv) contém 40 chamados fictícios com gabarito de categoria, prioridade, filial e sistema. O [prompt v1](prompts/classificador.md) inclui três exemplos e deve ser usado junto da taxonomia. O conjunto ainda não mede acurácia: nenhuma chamada a modelo foi feita nesta etapa.
+
+Para verificar a estrutura do conjunto, com Python 3 instalado:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+O teste verifica formato, quantidade, identificadores, campos e cobertura dos rótulos; não valida a correção semântica dos gabaritos nem a qualidade do modelo. Não há variáveis necessárias nesta etapa; `.env.example` registra isso e `.env` está ignorado pelo Git.
 
 ## Estrutura
 
@@ -20,7 +32,8 @@ n8n em Docker. API do Claude com saída estruturada em JSON. Google Sheets ou Su
 triagem-chamados-ia/
 ├─ workflows/triagem.json        # exportação do n8n
 ├─ prompts/classificador.md      # versões do prompt
-├─ dados/chamados_rotulados.csv  # 40 chamados fictícios com gabarito
+├─ dados/                         # taxonomia e 40 chamados fictícios com gabarito
+├─ tests/                         # validação estrutural do conjunto
 ├─ avaliacao/
 │  ├─ avaliar.js                 # roda o prompt e calcula o acerto
 │  └─ resultados/                # um relatório por versão e por modelo

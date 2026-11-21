@@ -1,0 +1,41 @@
+id,chamado,categoria,prioridade,filial,sistema
+01,Filial Aurora: nenhum usuário consegue entrar no ERP; empresa inteira parada sem alternativa.,acesso,critica,Aurora,ERP
+02,Filial Boreal: cinco caixas sem acesso ao ERP impedem vendas na loja sem alternativa.,acesso,alta,Boreal,ERP
+03,Filial Cedro: uma pessoa teve a senha bloqueada no ERP e outro operador cobre seu trabalho.,acesso,media,Cedro,ERP
+04,Filial Aurora: solicito criar acesso ao ERP para funcionário que começa na próxima semana.,acesso,baixa,Aurora,ERP
+05,Filial Boreal: perfil de um comprador não permite consultar pedidos no ERP; há alternativa temporária.,acesso,media,Boreal,ERP
+06,Filial Cedro: cadastro incorreto impede faturamento de todos os pedidos e não há alternativa.,cadastro,alta,Cedro,ERP
+07,Filial Aurora: corrigir telefone de um fornecedor no ERP na próxima semana; não há bloqueio.,cadastro,baixa,Aurora,ERP
+08,Filial Boreal: um cliente está duplicado no ERP; pedido pode aguardar correção.,cadastro,media,Boreal,ERP
+09,Filial Cedro: cadastro de produto com unidade errada afeta uma venda; podemos usar outro item temporariamente.,cadastro,media,Cedro,ERP
+10,Filial Aurora: inclusão de novo fornecedor no ERP para compra planejada no mês que vem.,cadastro,baixa,Aurora,ERP
+11,Filial Boreal: todas as notas fiscais são rejeitadas no ERP; empresa inteira parada sem alternativa.,fiscal,critica,Boreal,ERP
+12,Filial Cedro: erro de imposto em uma nota no ERP impede envio urgente sem alternativa.,fiscal,alta,Cedro,ERP
+13,Filial Aurora: consultar divergência de CFOP em uma nota do ERP; emissão continua.,fiscal,media,Aurora,ERP
+14,Filial Boreal: atualizar texto de observação fiscal no ERP antes do próximo mês.,fiscal,baixa,Boreal,ERP
+15,Filial Cedro: cancelamento de uma nota no ERP apresenta erro; demais notas funcionam e há prazo.,fiscal,media,Cedro,ERP
+16,Filial Aurora: nenhum pagamento pode ser processado no Financeiro; empresa toda parada sem alternativa.,financeiro,critica,Aurora,Financeiro
+17,Filial Boreal: remessa bancária de hoje falha no Financeiro e não há alternativa para os pagamentos.,financeiro,alta,Boreal,Financeiro
+18,Filial Cedro: um boleto aparece duplicado no Financeiro; podemos conferir manualmente.,financeiro,media,Cedro,Financeiro
+19,Filial Aurora: ajustar descrição de centro de custo no Financeiro para próximo fechamento.,financeiro,baixa,Aurora,Financeiro
+20,Filial Boreal: conciliação de um lançamento no Financeiro diverge; não bloqueia pagamentos.,financeiro,media,Boreal,Financeiro
+21,Filial Cedro: saldo indisponível no Estoque parou a operação de toda a empresa; sem alternativa.,estoque,critica,Cedro,Estoque
+22,Filial Aurora: inventário de um depósito está bloqueado no Estoque e impede expedição urgente sem alternativa.,estoque,alta,Aurora,Estoque
+23,Filial Boreal: saldo de um produto diverge no Estoque; equipe pode contar manualmente.,estoque,media,Boreal,Estoque
+24,Filial Cedro: incluir localização de prateleira no Estoque para inventário do mês que vem.,estoque,baixa,Cedro,Estoque
+25,Filial Aurora: transferência de um item não aparece no Estoque; separação pode aguardar.,estoque,media,Aurora,Estoque
+26,Filial Boreal: todos os pedidos falham no Vendas; nenhuma loja consegue vender e não há alternativa.,vendas,critica,Boreal,Vendas
+27,Filial Cedro: pedidos de um canal não fecham no Vendas; entrega urgente sem alternativa.,vendas,alta,Cedro,Vendas
+28,Filial Aurora: desconto de um pedido não calcula no Vendas; operador pode registrar manualmente.,vendas,media,Aurora,Vendas
+29,Filial Boreal: alterar nome de uma campanha no Vendas para o próximo mês.,vendas,baixa,Boreal,Vendas
+30,Filial Cedro: um orçamento não abre no Vendas; cliente aceita aguardar.,vendas,media,Cedro,Vendas
+31,Filial Aurora: rede de todas as unidades caiu; nenhum sistema da empresa está acessível e não há alternativa.,infraestrutura,critica,Aurora,não informado
+32,Filial Boreal: rede da loja caiu e caixas estão parados sem conexão alternativa.,infraestrutura,alta,Boreal,não informado
+33,Filial Cedro: impressora de um posto não responde; outra impressora está disponível.,infraestrutura,media,Cedro,não informado
+34,Filial Aurora: instalar monitor reserva na próxima semana; posto atual funciona.,infraestrutura,baixa,Aurora,não informado
+35,Filial Boreal: computador de um operador está lento; ele consegue usar outro.,infraestrutura,media,Boreal,não informado
+36,Filial Cedro: processo operacional desconhecido interrompeu toda a empresa; sem alternativa.,outros,critica,Cedro,não informado
+37,Filial Aurora: tarefa operacional não identificada impede entrega urgente sem alternativa.,outros,alta,Aurora,não informado
+38,Filial Boreal: preciso de ajuda com uma dúvida operacional não detalhada; trabalho continua.,outros,media,Boreal,não informado
+39,Filial Cedro: solicito orientação geral para treinamento no próximo mês.,outros,baixa,Cedro,não informado
+40,Filial Aurora: há comportamento estranho não descrito em sistema não informado; existe alternativa.,outros,media,Aurora,não informado
