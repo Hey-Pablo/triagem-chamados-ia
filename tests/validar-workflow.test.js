@@ -44,6 +44,15 @@ if (!Array.isArray(workflow.nodes) || workflow.nodes.length === 0) {
 }
 console.log(`✅ ${workflow.nodes.length} nós definidos`);
 
+// Os nós Code usam o parâmetro reconhecido pelo n8n e nomes únicos.
+const assert = require('node:assert/strict');
+assert.equal(new Set(workflow.nodes.map(node => node.name)).size, workflow.nodes.length, 'Nomes de nós devem ser únicos');
+assert.ok(workflow.nodes.some(node => node.name === 'Telegram - Falha' && node.id === '3g'));
+assert.ok(workflow.nodes.every(node => node.type !== 'n8n-nodes-base.function'));
+for (const node of workflow.nodes.filter(node => node.type === 'n8n-nodes-base.code')) {
+  assert.equal(typeof node.parameters.jsCode, 'string', `${node.name} deve conter jsCode`);
+}
+
 // Verificar nós críticos (incluindo novos nós de retry e validação)
 const criticalNodes = [
   'Webhook - Receber Chamado',

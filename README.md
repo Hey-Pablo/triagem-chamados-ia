@@ -33,7 +33,7 @@ flowchart TD
         K --> L[Telegram - Revisão]
         F -->|Inválido| M[Verificar Retry]
         M -->|Tentar novamente| E
-        M -->|Exaído| N[Telegram - Falha]
+        M -->|Falha| N[Telegram - Erro JSON]
         N --> O[Chamados Erros]
     end
 
@@ -233,6 +233,8 @@ Antes de considerar o workflow pronto, teste:
 
 ## Limitações
 
+- A revisão no Telegram ainda não possui botões inline nem comandos de aprovação ou correção. A mensagem é apenas uma notificação; a equipe deve revisar e corrigir o registro manualmente no banco. O fluxo não registra a decisão humana.
+- O fluxo não foi executado no n8n nesta alteração: Docker não estava disponível no ambiente de desenvolvimento. Após importar, valide os caminhos de confiança, retry, persistência e notificações antes de usá-lo.
 - A avaliação foi feita com 40 chamados fictícios; não representa volume real de produção
 - Exemplos no prompt são do mesmo conjunto (overfitting esperado)
 - Confiança é estimativa, não probabilidade calibrada
