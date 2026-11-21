@@ -33,7 +33,7 @@ flowchart TD
         K --> L[Telegram - Revisão]
         F -->|Inválido| M[Verificar Retry]
         M -->|Tentar novamente| E
-        M -->|Exaído| N[Telegram - Erro]
+        M -->|Exaído| N[Telegram - Falha]
         N --> O[Chamados Erros]
     end
 
@@ -114,13 +114,15 @@ node --test avaliacao/metricas.test.js
 
 A avaliação v1 foi executada em 21/11/2026 com os 40 chamados do conjunto rotulado.
 
+> **Nota**: O conjunto inclui exemplos do próprio prompt (overfitting esperado). Use como referência, não como garantia de desempenho com dados reais.
+
 ### Modelo principal: Claude Opus 5.5 (`claude-opus-5-5`)
-- **Acurácia**: 100% (40/40 corretos)
+- **Acurácia**: 100% (40/40 corretos) - dados rotulados com exemplos do prompt
 - **Tempo médio por chamado**: 11,89 segundos
 - **Custo estimado**: $0.015 - $0.03 por chamado
 
 ### Modelo econômico: Claude Haiku 5.5 (`claude-haiku-5-5`)
-- **Acurácia**: 100% (40/40 corretos)
+- **Acurácia**: 100% (40/40 corretos) - dados rotulados com exemplos do prompt
 - **Tempo médio por chamado**: 11,52 segundos
 - **Custo estimado**: ~$0.0015 - $0.003 por chamado
 
@@ -180,7 +182,7 @@ cp .env.example .env
 Variáveis necessárias:
 - `N8N_ENCRYPTION_KEY` - 32 caracteres aleatórios
 - `LLM_MODEL` - Modelo a ser usado (default: claude-opus-5-5)
-- `LLM_API_URL` - URL da API do provedor
+- `LLM_API_URL` - URL da API do provedor (padrão: Anthropic)
 - `LLM_API_KEY` - Chave de API do provedor
 - `CONFIDENCE_THRESHOLD` - Limite para revisão humana (ex: 0.70)
 - `TELEGRAM_BOT_TOKEN` - Token do bot
@@ -212,7 +214,7 @@ Antes de considerar o workflow pronto, teste:
 3. **Configurar credenciais**:
    - PostgreSQL (host: db, usuário: n8n_user, senha: ${POSTGRES_PASSWORD})
    - Telegram Bot (token do @BotFather)
-   - HTTP Request (Bearer token Claude)
+   - HTTP Request (x-api-key: sua-chave-Claude)
 
 4. **Importar o workflow**:
    - Settings → Import/Export → Import
@@ -241,7 +243,7 @@ Antes de considerar o workflow pronto, teste:
 1. Monitorar custo real em produção
 2. Ajustar threshold de confiança com dados reais
 3. Adicionar análise de erros por categoria
-4. Implementar fallback para múltiplos modelos
+4. Implementar botões de aprovar/corrigir no Telegram (inline keyboard)
 
 ## Como o Pablo deve testar no Windows
 
@@ -249,9 +251,11 @@ Antes de considerar o workflow pronto, teste:
 2. `git clone https://github.com/Hey-Pablo/triagem-chamados-ia.git`
 3. `cd triagem-chamados-ia`
 4. Criar `.env` a partir de `.env.example`
-5. `docker-compose up -d`
-6. Configurar credenciais no n8n após importação
-7. Testar webhook com chamados reais
+5. `docker-compose up -d` → http://localhost:5678
+6. Importar `workflows/triagem.json`
+7. Configurar credenciais: PostgreSQL, Telegram, LLM API Key
+8. Testar webhook POST
+9. Verificar pgAdmin: http://localhost:8080
 
 ---
 
