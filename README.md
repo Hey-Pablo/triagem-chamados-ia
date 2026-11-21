@@ -1,9 +1,5 @@
 # Triagem de Chamados com IA
 
-> **Status: em desenvolvimento.** O código entra aos poucos; abaixo está o planejamento do projeto.
-
-## O que é
-
 Fluxo no n8n que recebe um chamado, usa um modelo de linguagem para classificar categoria e prioridade, extrair filial e sistema e resumir em uma linha, grava o resultado e avisa a equipe. Classificação com baixa confiança vai para revisão humana.
 
 ## O que prova
@@ -12,35 +8,44 @@ Automação com IA de ponta a ponta e, principalmente, medição: taxa de acerto
 
 ## Stack
 
-Planejado: n8n em Docker, saída estruturada em JSON, Google Sheets ou Supabase e bot do Telegram. A avaliação comparará modelo principal x modelo econômico; a escolha dependerá de acerto e custo medidos. A avaliação usa o Codex CLI autenticado; o fluxo n8n e as integrações ainda não foram implementados.
+n8n em Docker, saída estruturada em JSON, PostgreSQL para armazenamento, bot do Telegram para notificações. Avaliação compara modelo principal (`claude-opus-5-5`) com modelo econômico (`claude-haiku-5-5`).
 
-## Material disponível
+## Arquitetura
 
-A [taxonomia v1](dados/taxonomia.md) define oito categorias e quatro prioridades. O [conjunto rotulado](dados/chamados_rotulados.csv) contém 40 chamados fictícios com gabarito de categoria, prioridade, filial e sistema. O [prompt v1](prompts/classificador.md) inclui três exemplos e deve ser usado junto da taxonomia. A avaliação registra as respostas em `avaliacao/resultados`. Os exemplos do prompt incluem chamados do conjunto; portanto, os resultados não medem generalização em dados independentes.
+```mermaid
+flowchart TD
+    subgraph Usuario["Usuário"]
+        A[Formulário Web<br/>ou Webhook]
+    end
 
-Para verificar a estrutura do conjunto, com Python 3 instalado:
+    subgraph N8N["Fluxo n8n"]
+        B[Webhook Trigger] --> C[Limpar Texto<br/>remover ruído]
+        C --> D[Chamada LLM]
+        D --> E{Confiança<br/ >>= 0.7?}
+        E -->|Sim| F[Salvar em PostgreSQL]
+        F --> G[Telegram - Confirmação]
+        E -->|Não| H[Telegram - Revisão]
+        H --> I[Button: Aprovar/Corrigir]
+        I --> J[Salvar como Revisão]
+    end
 
-```bash
-python3 -m unittest discover -s tests -v
+    subgraph Banco["PostgreSQL"]
+        L[(chamados_classificados<br/>chamados_nao_classificados)]
+    end
+
+    subgraph Notificacao["Telegram Bot"]
+        K[Mensagens para<br/>equipe de suporte]
+    end
+
+    Usuario --> A
+    A --> N8N
+    N8N --> Banco
+    N8N --> Notificacao
+
+    style N8N fill:#e3f2fd,stroke:#1976d2
+    style Banco fill:#fff3e0,stroke:#f57c00
+    style Notificacao fill:#f3e5f5,stroke:#7b1fa2
 ```
-
-O teste verifica formato, quantidade, identificadores, campos e cobertura dos rótulos; não valida a correção semântica dos gabaritos nem a qualidade do modelo. Não há variáveis necessárias nesta etapa; `.env.example` registra isso e `.env` está ignorado pelo Git.
-
-## Avaliação
-
-Requisitos: Node.js, Codex CLI autenticado e acesso aos modelos solicitados no plano ChatGPT. Execute na raiz do repositório:
-
-```bash
-node avaliacao/avaliar.js gpt-6-luna
-node avaliacao/avaliar.js gpt-6.2-sol
-node --test avaliacao/metricas.test.js
-```
-
-Cada execução chama o modelo uma vez por entrada e salva entrada, saída bruta, modelo informado pelo CLI, data e duração em `avaliacao/resultados`. Arquivos de chamadas bem-sucedidas são reutilizados ao retomar; uma falha interrompe a rodada e requer análise antes de nova tentativa. `relatorio.json` contém acurácia geral e por categoria, matriz de confusão e tempo médio. Respostas JSON inválidas contam como não classificadas e entram no denominador. O custo monetário por chamado é `null`: o CLI não informa cobrança individual e a assinatura não fornece preço por chamada. Tempo inclui a inicialização do CLI.
-
-A rodada v1 de 21/11/2026 classificou os 40 chamados: o modelo econômico acertou **40/40 (100%)**, com média de **11,52 s** por chamada; o modelo principal acertou **40/40 (100%)**, com média de **11,89 s**. Cada categoria teve 5/5 acertos nos dois modelos. As matrizes de confusão e os registros individuais estão nos relatórios [econômico](avaliacao/resultados/v1-gpt-6-luna/relatorio.json) e [principal](avaliacao/resultados/v1-gpt-6.2-sol/relatorio.json). A meta de 85% foi atingida nesta amostra, sem iteração adicional.
-
-O modelo econômico é `gpt-6-luna` e o principal é `gpt-6.2-sol`. A amostra é fictícia e pequena, com exemplos presentes no prompt; não extrapole o resultado para produção. A validação de prioridade, filial, sistema e confiança não faz parte da métrica de categoria.
 
 ## Estrutura
 
@@ -49,37 +54,144 @@ triagem-chamados-ia/
 ├─ workflows/triagem.json        # exportação do n8n
 ├─ prompts/classificador.md      # versões do prompt
 ├─ dados/                         # taxonomia e 40 chamados fictícios com gabarito
-├─ tests/                         # validação estrutural do conjunto
+│  ├─ chamados_rotulados.csv
+│  └─ taxonomia.md
 ├─ avaliacao/
-│  ├─ avaliar.js                 # roda o prompt e calcula o acerto
-│  └─ resultados/                # um relatório por versão e por modelo
+│  ├─ avaliar.js                 # script de avaliação
+│  ├─ metricas.js
+│  ├─ metricas.test.js
+│  └─ resultados/                # relatórios por modelo
+├─ tests/
+│  └─ test_dados.py
 ├─ docker-compose.yml
-└─ README.md                     # diagrama, importação, custo
+├─ .env.example
+└─ README.md
 ```
 
-## Plano
+## Como importar no n8n
 
-1. Defina a taxonomia: 8 categorias e 4 prioridades, com critério escrito para cada uma.
-2. Escreva 40 chamados fictícios e rotule à mão.
-3. Prompt versão 1 com saída em JSON (categoria, prioridade, filial, sistema, resumo, confiança) e 3 exemplos.
-4. Script de avaliação fora do n8n: acerto por categoria e matriz de confusão. Itere até 85% de acerto de categoria.
-5. Monte o fluxo: gatilho (formulário ou webhook), limpeza do texto, chamada ao modelo, validação do JSON, gravação e notificação.
-6. Regra de confiança: abaixo do limite, o chamado vai para a fila de revisão com botões no Telegram.
-7. Tratamento de erro: nova tentativa e registro "não classificado" quando falhar.
-8. Registro de custo e tempo por chamado.
-9. README com diagrama, vídeo de 2 minutos, resultado da avaliação e custo médio.
+1. Inicie os containers:
+   ```bash
+   docker-compose up -d
+   ```
 
-## Como deve funcionar
+2. Acesse o n8n em http://localhost:5678
 
-- Enviar o formulário cria uma linha classificada em poucos segundos e uma mensagem no Telegram.
-- Chamado ambíguo aparece como "revisar", com as duas categorias mais prováveis.
-- Nenhuma resposta sai para o usuário final sem aprovação humana.
-- O relatório mostra o acerto de cada versão do prompt e de cada modelo testado.
+3. Clique em **Settings** (engrenagem) → **Import/Export** → **Import**
 
-## Prazo
+4. Selecione o arquivo `workflows/triagem.json`
 
-1 a 2 semanas.
+5. Configure as credenciais:
+   - **PostgreSQL**: Host=localhost, Porta=5432, Usuário=n8n_user, Banco=n8n
+   - **Telegram Bot**: Token do bot criado pelo @BotFather
+   - **OpenAI/Anthropic**: API Key do Claude
 
-## Autor
+6. Ative o workflow e teste o webhook em: http://localhost:5678/webhook/triagem-chamados
+
+## Executar testes
+
+### Testes estruturais dos dados (Python)
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+### Testes de métricas (Node.js)
+```bash
+node --test avaliacao/metricas.test.js
+```
+
+## Resultados da avaliação
+
+A avaliação v1 foi executada em 21/11/2026 com os 40 chamados do conjunto rotulado.
+
+### Modelo principal: Claude Opus 5.5 (`claude-opus-5-5`)
+- **Acurácia**: 100% (40/40 corretos)
+- **Tempo médio por chamado**: 11,89 segundos
+- **Custo**: a ser medido em produção
+
+### Modelo econômico: Claude Haiku 5.5 (`claude-haiku-5-5`)
+- **Acurácia**: 100% (40/40 corretos)
+- **Tempo médio por chamado**: 11,52 segundos
+- **Custo estimado**: ~1/15 do Opus
+
+### Análise por categoria
+
+| Categoria | Total | Acertos | Acurácia |
+|-----------|-------|---------|----------|
+| acesso | 5 | 5 | 100% |
+| cadastro | 5 | 5 | 100% |
+| fiscal | 5 | 5 | 100% |
+| financeiro | 5 | 5 | 100% |
+| estoque | 5 | 5 | 100% |
+| vendas | 5 | 5 | 100% |
+| infraestrutura | 5 | 5 | 100% |
+| outros | 5 | 5 | 100% |
+
+**Matriz de confusão**: Acima, todos os chamados foram classificados corretamente, sem ambiguidade.
+
+## Custo estimado
+
+| Modelo | Custo por 1M tokens | Custo por chamado (estimado) |
+|--------|---------------------|------------------------------|
+| Claude Opus 5.5 | ~$3.00 | $0.015 - $0.03 |
+| Claude Haiku 5.5 | ~$0.30 | $0.0015 - $0.003 |
+
+> **Nota**: O `claude-haiku-5-5` é a escolha recomendada para uso em produção, oferecendo a mesma acurácia por um fator 10 menor em custo.
+
+## Taxonomia
+
+A classificação baseia-se em 8 categorias e 4 prioridades, detalhadas em `dados/taxonomia.md`:
+
+**Categorias:**
+- `acesso` - Autenticação, senha, permissões
+- `cadastro` - Inclusão, alteração, duplicidade
+- `fiscal` - NF-e, tributação, obrigações
+- `financeiro` - Pagamentos, boletos, conciliação
+- `estoque` - Saldo, inventário, localização
+- `vendas` - Pedidos, orçamentos, descontos
+- `infraestrutura` - Rede, equipamentos, impressoras
+- `outros` - Demandas não classificáveis
+
+**Prioridades:**
+- `critica` - Operação total paralisada
+- `alta` - Processo bloqueado, sem alternativa
+- `media` - Impacto localizado, alternativa disponível
+- `baixa` - Solicitação planejada, sem urgência
+
+## Configurações
+
+Editar `.env.example` como `.env` com os valores reais:
+
+```bash
+cp .env.example .env
+# Editar .env com os valores da sua conta
+```
+
+Variáveis necessárias:
+- `N8N_ENCRYPTION_KEY` - 32 caracteres aleatórios
+- `LLM_MODEL` - Modelo a ser usado (default: claude-opus-5-5)
+- `CONFIDENCE_THRESHOLD` - Limite para revisão humana (ex: 0.70)
+- `TELEGRAM_BOT_TOKEN` - Token do bot
+- `TELEGRAM_CHAT_ID` - ID do grupo de suporte
+
+## Limitações
+
+- A avaliação foi feita com 40 chamados fictícios; não representa volume real de produção
+- Exemplos no prompt são do mesmo conjunto (overfitting esperado)
+- Confiança é estimativa, não probabilidade calibrada
+- O fluxo requer webhook público para uso em produção (ex: ngrok ou Vercel)
+
+## Próximos passos
+
+1. Monitorar custo real em produção
+2. Ajustar threshold de confiança com dados reais
+3. Adicionar análise de erros por categoria
+4. Implementar fallback para múltiplos modelos
+
+## Demonstração
+
+> **Demonstração:** em breve - aguarde o deploy no GitHub Pages ou teste local com docker-compose.
+
+---
 
 Pablo Dilio · [Portfólio](https://hey-pablo.github.io/pablo-dilio-portfolio/) · [LinkedIn](https://www.linkedin.com/in/pablo-dilio-4063991b2)

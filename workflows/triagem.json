@@ -1,0 +1,211 @@
+{
+  "name": "Triagem de Chamados com IA",
+  "nodes": [
+    {
+      "parameters": {
+        "httpCode": 200,
+        "responseMode": "lastNode",
+        "responseData": "{{$json}}",
+        "options": {}
+      },
+      "id": "1",
+      "name": "Webhook - Receber Chamado",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhook": "triagem-chamados"
+    },
+    {
+      "parameters": {
+        "functionCode": "const texto = items[0].json.texto || items[0].json.chamado;\nconst limpo = texto.replace(/\\s+/g, ' ').trim();\nreturn [{ json: { texto: limpo, texto_original: texto } }];"
+      },
+      "id": "2",
+      "name": "Limpar Texto",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "prompt": "=#= $json.system_prompt",
+        "systemMessage": "=#= $json.system_message",
+        "requestId": "=#= DateTime.now().toISO()",
+        "responseFormat": "json"
+      },
+      "id": "3",
+      "name": "Chamada LLM Classificador",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "credentials": {
+        "openAiApi": "claude_api"
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.confianca }}",
+              "operation": "smaller",
+              "value2": "={{ $env.CONFIDENCE_THRESHOLD ? parseInt($env.CONFIDENCE_THRESHOLD) * 100 : 70 }}"
+            }
+          ]
+        }
+      },
+      "id": "4",
+      "name": "Validar Confiança",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "chamados_classificados",
+        "columns": {
+          "id_chamado": "={{ DateTime.now().toISO().replace(/[:.]/g, '-') }}",
+          "texto_original": "={{ $json.texto_original }}",
+          "categoria": "={{ $json.categoria }}",
+          "prioridade": "={{ $json.prioridade }}",
+          "filial": "={{ $json.filial || 'não informado' }}",
+          "sistema": "={{ $json.sistema || 'não informado' }}",
+          "resumo": "={{ $json.resumo }}",
+          "confianca": "={{ $json.confianca }}",
+          "status": "classificado",
+          "modelo_usado": "={{ $json.modeloSolicitado || 'claude-opus-5-5' }}",
+          "tempo_ms": 0
+        }
+      },
+      "id": "5",
+      "name": "Salvar em PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1050, 400],
+      "credentials": {
+        "postgres": "n8n_db"
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "=#= $env.TELEGRAM_CHAT_ID",
+        "text": "✅ Chamado classificado e salvo\n\nID: {{ $json.id_chamado }}\nCategoria: {{ $json.categoria }}\nPrioridade: {{ $json.prioridade }}\nFilial: {{ $json.filial }}\nSistema: {{ $json.sistema }}\nResumo: {{ $json.resumo }}\n\n✅ Pronto para revisão.",
+        "disableNotification": false
+      },
+      "id": "6",
+      "name": "Telegram - Confirmação",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1250, 400],
+      "credentials": {
+        "telegramApi": "telegram_bot"
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "chatId": "=#= $env.TELEGRAM_CHAT_ID",
+        "text": "🔄 Nova triagem com baixa confiança\n\nChamado: {{ $json.texto_original }}\n\nCategoria: {{ $json.categoria }}\nPrioridade: {{ $json.prioridade }}\nConfiança: {{ $json.confianca }}\n\nO que você acha?\n\n/resolver - Aprovar classificação\n/rejeitar - Corrigir",
+        "disableNotification": false
+      },
+      "id": "7",
+      "name": "Telegram - Revisão",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1050, 200],
+      "credentials": {
+        "telegramApi": "telegram_bot"
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "chamados_nao_classificados",
+        "columns": {
+          "id_chamado": "={{ DateTime.now().toISO().replace(/[:.]/g, '-') }}",
+          "texto_original": "={{ $json.texto_original }}",
+          "tentativas": 1,
+          "erro_ultimo": "Confiança abaixo do threshold"
+        }
+      },
+      "id": "8",
+      "name": "Registrar para Revisão",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1250, 200],
+      "credentials": {
+        "postgres": "n8n_db"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook - Receber Chamado": {
+      "main": [
+        [
+          {
+            "node": "Limpar Texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpar Texto": {
+      "main": [
+        [
+          {
+            "node": "Chamada LLM Classificador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chamada LLM Classificador": {
+      "main": [
+        [
+          {
+            "node": "Validar Confiança",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Confiança": {
+      "main": [
+        [
+          {
+            "node": "Salvar em PostgreSQL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram - Confirmação",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar para Revisão",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram - Revisão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "timezone": "America/Sao_Paulo"
+  },
+  "id": "triagem-chamados-workflow",
+  "staticData": {}
+}
