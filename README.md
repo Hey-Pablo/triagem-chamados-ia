@@ -190,7 +190,7 @@ Variáveis necessárias:
 
 ## Demonstração
 
-> **Demonstração:** em breve - aguarde o deploy no GitHub Pages ou teste local com docker-compose.
+> **Demonstração:** em breve - requer deploy em ambiente com Docker e webhook público.
 
 ---
 
