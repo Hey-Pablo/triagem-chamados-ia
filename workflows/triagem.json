@@ -17,7 +17,7 @@
     },
     {
       "parameters": {
-        "code": "const texto = items[0].json.texto || items[0].json.chamado;\nconst limpo = texto.replace(/\\s+/g, ' ').trim();\nreturn [{ json: { texto: limpo, texto_original: texto } }];"
+        "jsCode": "const texto = items[0].json.texto || items[0].json.chamado;\nconst limpo = texto.replace(/\\s+/g, ' ').trim();\nreturn [{ json: { texto: limpo, texto_original: texto } }];"
       },
       "id": "2",
       "name": "Limpar Texto",
@@ -27,7 +27,7 @@
     },
     {
       "parameters": {
-        "code": "// Registrar timestamp de início para cálculo de tempo\nreturn [{ json: { ...items[0].json, _start_time: Date.now() } }];"
+        "jsCode": "// Registrar timestamp de início para cálculo de tempo\nreturn [{ json: { ...items[0].json, _start_time: Date.now() } }];"
       },
       "id": "2a",
       "name": "Marcar Tempo Início",
@@ -37,7 +37,7 @@
     },
     {
       "parameters": {
-        "code": "// Contar tentativas e preparar para retry\nconst maxTentativas = $env.LLM_MAX_RETRIES ? parseInt($env.LLM_MAX_RETRIES) : 3;\nconst chamado = items[0].json;\n\nif (chamado._tentativa === undefined) {\n  chamado._tentativa = 1;\n} else {\n  chamado._tentativa += 1;\n}\n\nreturn [{ json: chamado }];"
+        "jsCode": "// Contar tentativas e preparar para retry\nconst maxTentativas = $env.LLM_MAX_RETRIES ? parseInt($env.LLM_MAX_RETRIES) : 3;\nconst chamado = items[0].json;\n\nif (chamado._tentativa === undefined) {\n  chamado._tentativa = 1;\n} else {\n  chamado._tentativa += 1;\n}\n\nreturn [{ json: chamado }];"
       },
       "id": "2b",
       "name": "Contar Tentativas",
@@ -87,7 +87,7 @@
     },
     {
       "parameters": {
-        "code": "// Validação de JSON da resposta do modelo Anthropic\nconst response = items[0].json;\nlet parsed = null;\nlet erroJson = null;\n\ntry {\n  // Anthropic retorna em content[0].text\n  const respostaStr = response.body?.content?.[0]?.text || response.content?.[0]?.text;\n  if (!respostaStr) {\n    throw new Error('Resposta vazia');\n  }\n  parsed = JSON.parse(respostaStr);\n} catch (e) {\n  erroJson = e.message;\n  parsed = null;\n}\n\n// Se não consegiu parsear, marca como erro\nif (!parsed) {\n  return [{\n    json: {\n      ...response,\n      texto_original: $json.texto_original,\n      _erro: 'JSON_INVALIDO',\n      _erro_json: erroJson || 'Resposta não é JSON válido'\n    }\n  }];\n}\n\n// Validar campos esperados\nconst camposRequeridos = ['categoria', 'prioridade'];\nconst camposFaltando = camposRequeridos.filter(c => !parsed[c]);\n\nif (camposFaltando.length > 0) {\n  return [{\n    json: {\n      ...response,\n      ...parsed,\n      texto_original: $json.texto_original,\n      _erro: 'JSON_INCOMPLETO',\n      _campos_faltando: camposFaltando\n    }\n  }];\n}\n\nreturn [{ json: { ...$json, ...parsed } }];"
+        "jsCode": "// Validação de JSON da resposta do modelo Anthropic\nconst response = items[0].json;\nlet parsed = null;\nlet erroJson = null;\n\ntry {\n  // Anthropic retorna em content[0].text\n  const respostaStr = response.body?.content?.[0]?.text || response.content?.[0]?.text;\n  if (!respostaStr) {\n    throw new Error('Resposta vazia');\n  }\n  parsed = JSON.parse(respostaStr);\n} catch (e) {\n  erroJson = e.message;\n  parsed = null;\n}\n\n// Se não consegiu parsear, marca como erro\nif (!parsed) {\n  return [{\n    json: {\n      ...response,\n      texto_original: $json.texto_original,\n      _erro: 'JSON_INVALIDO',\n      _erro_json: erroJson || 'Resposta não é JSON válido'\n    }\n  }];\n}\n\n// Validar campos esperados\nconst camposRequeridos = ['categoria', 'prioridade'];\nconst camposFaltando = camposRequeridos.filter(c => !parsed[c]);\n\nif (camposFaltando.length > 0) {\n  return [{\n    json: {\n      ...response,\n      ...parsed,\n      texto_original: $json.texto_original,\n      _erro: 'JSON_INCOMPLETO',\n      _campos_faltando: camposFaltando\n    }\n  }];\n}\n\nreturn [{ json: { ...$json, ...parsed } }];"
       },
       "id": "3a",
       "name": "Validar JSON Resposta",
@@ -114,7 +114,7 @@
     },
     {
       "parameters": {
-        "code": "// Verificar se ainda podemos tentar novamente\nconst maxTentativas = $env.LLM_MAX_RETRIES ? parseInt($env.LLM_MAX_RETRIES) : 3;\nconst tentativas = $json._tentativa || 1;\n\nif (tentativas < maxTentativas) {\n  return [{ json: { ...$json, _reattempt: true } }];\n} else {\n  return [{ json: { ...$json, _reattempt: false, _exhausted: true } }];\n}"
+        "jsCode": "// Verificar se ainda podemos tentar novamente\nconst maxTentativas = $env.LLM_MAX_RETRIES ? parseInt($env.LLM_MAX_RETRIES) : 3;\nconst tentativas = $json._tentativa || 1;\n\nif (tentativas < maxTentativas) {\n  return [{ json: { ...$json, _reattempt: true } }];\n} else {\n  return [{ json: { ...$json, _reattempt: false, _exhausted: true } }];\n}"
       },
       "id": "3c",
       "name": "Verificar Retry",
@@ -168,7 +168,7 @@
         "disableNotification": false
       },
       "id": "3f",
-      "name": "Telegram - Falha",
+      "name": "Telegram - Erro JSON",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1,
       "position": [1300, 50],
@@ -184,7 +184,7 @@
         "disableNotification": false
       },
       "id": "3g",
-      "name": "Telegram - Exaído",
+      "name": "Telegram - Falha",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1,
       "position": [1300, 150],
@@ -196,7 +196,7 @@
     {
       "parameters": {
         "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
-        "text": "🔄 Nova triagem com baixa confiança\n\nChamado: {{ $json.texto_original }}\n\nCategoria: {{ $json.categoria }}\nPrioridade: {{ $json.prioridade }}\nConfiança: {{ $json.confianca }}\n\n> Esta classificação precisa de revisão humana antes de ser usada.\n\nPara aprovar ou corrigir, responda:\n/resolver - Aprovar classificação\n/corrigir - Abrir formulário de correção",
+        "text": "🔄 Nova triagem com baixa confiança\n\nChamado: {{ $json.texto_original }}\n\nCategoria: {{ $json.categoria }}\nPrioridade: {{ $json.prioridade }}\nConfiança: {{ $json.confianca }}\n\n> Esta classificação precisa de revisão humana antes de ser usada.\n\nA aprovação ou correção deve ser feita manualmente; botões e comandos ainda não estão implementados.",
         "disableNotification": false
       },
       "id": "4a",
@@ -232,7 +232,7 @@
     },
     {
       "parameters": {
-        "code": "// Calcular tempo e custo real\nconst modeloCusto = {\n  'claude-opus-5-5': { input: 0.00003, output: 0.00015 },\n  'claude-haiku-5-5': { input: 0.000003, output: 0.000015 },\n  'claude-3-opus-20240229': { input: 0.00003, output: 0.00015 },\n  'claude-3-haiku-20240307': { input: 0.000003, output: 0.000015 }\n};\n\nconst startTime = $json._start_time || Date.now();\nconst tempoMs = Date.now() - startTime;\n\n// Estimativa de tokens (baseado no texto e na resposta)\nconst inputTokens = Math.ceil((($json.texto_original || '').length + ($json.texto || '').length) / 4);\nconst outputTokens = 500; // Resposta estruturada em JSON padrão\n\nconst modelo = $env.LLM_MODEL || 'claude-opus-5-5';\nconst custoModelo = modeloCusto[modelo] || modeloCusto['claude-opus-5-5'];\nconst custoUsd = (inputTokens * custoModelo.input + outputTokens * custoModelo.output) / 1000;\n\nreturn [{\n  json: {\n    ...$json,\n    tempo_ms: tempoMs,\n    custo_usd: parseFloat(custoUsd.toFixed(6)),\n    input_tokens: inputTokens,\n    output_tokens: outputTokens,\n    modelo_usado: modelo\n  }\n}];"
+        "jsCode": "// Calcular tempo e custo real\nconst modeloCusto = {\n  'claude-opus-5-5': { input: 0.00003, output: 0.00015 },\n  'claude-haiku-5-5': { input: 0.000003, output: 0.000015 },\n  'claude-3-opus-20240229': { input: 0.00003, output: 0.00015 },\n  'claude-3-haiku-20240307': { input: 0.000003, output: 0.000015 }\n};\n\nconst startTime = $json._start_time || Date.now();\nconst tempoMs = Date.now() - startTime;\n\n// Estimativa de tokens (baseado no texto e na resposta)\nconst inputTokens = Math.ceil((($json.texto_original || '').length + ($json.texto || '').length) / 4);\nconst outputTokens = 500; // Resposta estruturada em JSON padrão\n\nconst modelo = $env.LLM_MODEL || 'claude-opus-5-5';\nconst custoModelo = modeloCusto[modelo] || modeloCusto['claude-opus-5-5'];\nconst custoUsd = (inputTokens * custoModelo.input + outputTokens * custoModelo.output) / 1000;\n\nreturn [{\n  json: {\n    ...$json,\n    tempo_ms: tempoMs,\n    custo_usd: parseFloat(custoUsd.toFixed(6)),\n    input_tokens: inputTokens,\n    output_tokens: outputTokens,\n    modelo_usado: modelo\n  }\n}];"
       },
       "id": "4c",
       "name": "Calcular Custo/Tempo",
@@ -400,7 +400,7 @@
         ],
         [
           {
-            "node": "Telegram - Falha",
+            "node": "Telegram - Erro JSON",
             "type": "main",
             "index": 0
           }
