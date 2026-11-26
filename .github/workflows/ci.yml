@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Testes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependências
+        run: npm ci 2>/dev/null || echo "Sem package.json, pulando npm ci"
+
+      - name: Validar workflow n8n
+        run: node tests/validar-workflow.test.js
+
+      - name: Testes de métricas
+        run: node --test avaliacao/metricas.test.js
+
+      - name: Verificar segredos no código
+        run: |
+          echo "🔍 Verificando segredos..."
+          if rg -n -i "(sk-|ghp_|github_pat_|api[_-]?key\s*[:=]\s*['\"][A-Za-z0-9])" . --exclude-dir=.git --exclude="*.example" --exclude="package-lock.json" --exclude="yarn.lock" --exclude="pnpm-lock.yaml" 2>/dev/null; then
+            echo "❌ Segredo detectado no código!"
+            exit 1
+          else
+            echo "✅ Nenhum segredo detectado"
+          fi
+
+      - name: Verificar .env.example existe
+        run: |
+          if [ -f .env.example ]; then
+            echo "✅ .env.example encontrado"
+          else
+            echo "❌ .env.example não encontrado"
+            exit 1
+          fi
+
+  validate-readme:
+    name: Validar README
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verificar seção "Configurar sua chave"
+        run: |
+          echo "🔍 Verificando seção Configurar sua chave no README..."
+          if grep -q "Configurar sua chave" README.md; then
+            echo "✅ Seção 'Configurar sua chave' encontrada no README"
+          else
+            echo "❌ Seção 'Configurar sua chave' NÃO encontrada no README"
+            exit 1
+          fi
+
+      - name: Verificar linha de status
+        run: |
+          echo "🔍 Verificando linha de status no README..."
+          if head -20 README.md | grep -q "> **Demonstração:**"; then
+            echo "✅ Linha de demonstração/status encontrada"
+          else
+            echo "❌ Linha de demonstração/status NÃO encontrada"
+            exit 1
+          fi

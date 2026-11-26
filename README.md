@@ -1,8 +1,8 @@
 # Triagem de Chamados com IA
 
-Fluxo no n8n que recebe um chamado, usa um modelo de linguagem para classificar categoria e prioridade, extrair filial e sistema e resumir em uma linha, grava o resultado e avisa a equipe. Classificação com baixa confiança vai para revisão humana.
-
 > **Demonstração:** em breve - requer deploy em ambiente com Docker e webhook público.
+
+Fluxo no n8n que recebe um chamado, usa um modelo de linguagem para classificar categoria e prioridade, extrair filial e sistema e resumir em uma linha, grava o resultado e avisa a equipe. Classificação com baixa confiança vai para revisão humana.
 
 ## O que prova
 
@@ -169,6 +169,14 @@ A classificação baseia-se em 8 categorias e 4 prioridades, detalhadas em `dado
 - `alta` - Processo bloqueado, sem alternativa
 - `media` - Impacto localizado, alternativa disponível
 - `baixa` - Solicitação planejada, sem urgência
+
+## Configurar sua chave
+
+Para usar a inteligência artificial, você precisa de uma chave de API da Anthropic (Claude) ou outro provedor compatível.
+
+1. Obtenha sua chave em: [Anthropic Console](https://console.anthropic.com/)
+2. Copie o arquivo `.env.example` para `.env`
+3. Cole sua chave na variável `LLM_API_KEY`
 
 ## Configurações
 
