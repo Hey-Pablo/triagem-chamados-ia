@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci 2>/dev/null || echo "No package.json, skipping npm install"
+
+      - name: Validate workflow JSON
+        run: node tests/validar-workflow.test.js
+
+      - name: Run metrics tests
+        run: node --test avaliacao/metricas.test.js
+
+      - name: Check for hardcoded secrets
+        run: |
+          if grep -r -i "sk-\|ghp_\|github_pat_\|api[_-]?key\s*[:=]\s*['\"][A-Za-z0-9]" --include="*.json" --include="*.js" --include="*.md" --include="*.yml" --include="*.yaml" . | grep -v ".env.example" | grep -v "coloque-sua"; then
+            echo "❌ Hardcoded secrets detected!"
+            exit 1
+          fi
+          echo "✅ No hardcoded secrets found"
+
+      - name: Verify .env.example exists
+        run: |
+          if [ ! -f .env.example ]; then
+            echo "❌ .env.example not found!"
+            exit 1
+          fi
+          echo "✅ .env.example exists"
+
+      - name: Verify .gitignore excludes .env files
+        run: |
+          if ! grep -q "^\.env$" .gitignore; then
+            echo "❌ .gitignore missing .env exclusion"
+            exit 1
+          fi
+          if ! grep -q "^\.env\.\*" .gitignore; then
+            echo "❌ .gitignore missing .env.* exclusion"
+            exit 1
+          fi
+          if grep -q "^\.env\.example$" .gitignore; then
+            echo "❌ .gitignore should NOT exclude .env.example"
+            exit 1
+          fi
+          echo "✅ .gitignore correctly configured"
+
+      - name: Check README has status line
+        run: |
+          if ! grep -q ">" README.md; then
+            echo "❌ README missing status line (blockquote)"
+            exit 1
+          fi
+          echo "✅ README has status line"

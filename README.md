@@ -188,6 +188,34 @@ Variáveis necessárias:
 - `TELEGRAM_BOT_TOKEN` - Token do bot
 - `TELEGRAM_CHAT_ID` - ID do grupo de suporte
 
+## Configurar sua chave
+
+O workflow usa um modelo de linguagem (Claude, OpenAI, etc.) via API. A chave de API **não** vai para o repositório:
+
+1. Obtenha uma chave no provedor desejado:
+   - **Anthropic (Claude)**: https://console.anthropic.com/ → API Keys → Create Key
+   - **OpenAI**: https://platform.openai.com/api-keys → Create new secret key
+   - **Outros**: consulte a documentação do provedor
+
+2. Copie o `.env.example` para `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+
+3. Edite o `.env` e preencha:
+   - `LLM_API_KEY=coloque-sua-chave-aqui` — sua chave do provedor
+   - `LLM_API_URL=https://api.anthropic.com/v1/messages` — URL da API (ajuste se usar outro provedor)
+   - `LLM_MODEL=claude-opus-5-5` — modelo desejado (ou `claude-haiku-5-5` para custo menor)
+   - `TELEGRAM_BOT_TOKEN` e `TELEGRAM_CHAT_ID` — para notificações
+   - `N8N_ENCRYPTION_KEY` — gere 32 caracteres aleatórios: `openssl rand -hex 16`
+
+4. Suba os containers:
+   ```bash
+   docker-compose up -d
+   ```
+
+> **Importante**: O arquivo `.env` está no `.gitignore` e **nunca** deve ser commitado. Use apenas o `.env.example` como modelo.
+
 ## Recursos do Workflow
 
 O fluxo implementa:
