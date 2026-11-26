@@ -2,6 +2,8 @@
 
 > **Demonstração:** em breve - requer deploy em ambiente com Docker e webhook público.
 
+> **Status: concluído.** Fluxo n8n, prompts, avaliação e CI prontos, com métricas testadas automaticamente. Falta o Pablo subir o Docker/n8n e rodar a avaliação com a própria chave (ver "Configurar sua chave").
+
 Fluxo no n8n que recebe um chamado, usa um modelo de linguagem para classificar categoria e prioridade, extrair filial e sistema e resumir em uma linha, grava o resultado e avisa a equipe. Classificação com baixa confiança vai para revisão humana.
 
 ## O que prova

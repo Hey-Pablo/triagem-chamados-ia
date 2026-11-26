@@ -67,7 +67,7 @@ jobs:
       - name: Verificar linha de status
         run: |
           echo "🔍 Verificando linha de status no README..."
-          if head -20 README.md | grep -q "> **Demonstração:**"; then
+          if head -20 README.md | grep -qF "> **Demonstração:**"; then
             echo "✅ Linha de demonstração/status encontrada"
           else
             echo "❌ Linha de demonstração/status NÃO encontrada"
